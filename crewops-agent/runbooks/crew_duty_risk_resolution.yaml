@@ -1,0 +1,98 @@
+name: Crew Duty Risk Resolution
+version: "1.0"
+description: Investigate a delayed flight, identify duty-limit conflicts, validate a reserve replacement, and require approval before previewing the roster action.
+steps:
+  - id: get_flight
+    description: Read the flight schedule, origin, and delay.
+    tool: flight_get
+    arguments:
+      flight_id: "${flight_id}"
+    destructive: false
+    timeout: 15
+
+  - id: get_roster
+    description: Read the crew assigned to the flight.
+    tool: flight_roster
+    arguments:
+      flight_id: "${flight_id}"
+    destructive: false
+    timeout: 15
+
+  - id: check_duty_clock
+    description: Read duty totals and limits for every assigned crew member.
+    tool: duty_clock_get
+    arguments:
+      crew_ids: "${get_roster[*].crew_id}"
+    destructive: false
+    timeout: 15
+
+  - id: identify_constraint
+    description: Compare current duty plus delay exposure with each crew limit.
+    tool: identify_constraint
+    arguments:
+      delay_minutes: "${get_flight.delay_minutes}"
+      roster: "${get_roster}"
+      duty_clocks: "${check_duty_clock}"
+    destructive: false
+    timeout: 15
+
+  - id: search_reserve
+    description: Find an available reserve at the origin with the constrained crew rank.
+    tool: reserve_search
+    when: "${identify_constraint.replacement_supported}"
+    arguments:
+      base: "${get_flight.origin}"
+      rank: "${identify_constraint.constraints[0].required_rank}"
+      exclude_crew_ids: "${get_roster[*].crew_id}"
+    destructive: false
+    timeout: 15
+
+  - id: validate_candidate
+    description: Validate reserve availability, rank, base, duty capacity, and certification.
+    tool: validate_candidate
+    when: "${search_reserve.candidates[0].crew_id}"
+    arguments:
+      flight_id: "${flight_id}"
+      candidate_id: "${search_reserve.candidates[0].crew_id}"
+      required_rank: "${identify_constraint.constraints[0].required_rank}"
+      delay_minutes: "${get_flight.delay_minutes}"
+    destructive: false
+    timeout: 15
+
+  - id: simulate_change
+    description: Run read-only database checks for the proposed substitution.
+    tool: simulate_roster_change
+    when: "${validate_candidate.valid}"
+    arguments:
+      flight_id: "${flight_id}"
+      crew_to_remove: "${identify_constraint.constraints[0].crew_id}"
+      replacement_crew_id: "${validate_candidate.crew_id}"
+      required_rank: "${identify_constraint.constraints[0].required_rank}"
+      delay_minutes: "${get_flight.delay_minutes}"
+    destructive: false
+    timeout: 15
+
+  - id: apply_change
+    description: Preview the approved roster substitution without changing database rows.
+    tool: roster_apply_change
+    when: "${simulate_change.safe}"
+    arguments:
+      flight_id: "${flight_id}"
+      crew_to_remove: "${identify_constraint.constraints[0].crew_id}"
+      replacement_crew_id: "${validate_candidate.crew_id}"
+    destructive: true
+    mock: true
+    timeout: 15
+
+  - id: verify
+    description: Verify the roster matches the expected preview or committed state.
+    tool: verify_roster
+    when: "${simulate_change.safe}"
+    arguments:
+      flight_id: "${flight_id}"
+      original_crew_ids: "${get_roster[*].crew_id}"
+      crew_to_remove: "${identify_constraint.constraints[0].crew_id}"
+      replacement_crew_id: "${validate_candidate.crew_id}"
+      apply_result: "${apply_change}"
+    destructive: false
+    timeout: 15

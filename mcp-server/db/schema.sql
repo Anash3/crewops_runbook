@@ -69,7 +69,7 @@ CREATE TABLE risk_signal (
 INSERT INTO crew (crew_id, name, base, rank) VALUES
     ('C102', 'Alice Smith', 'JFK', 'Captain'),
     ('C231', 'Bob Jones', 'LAX', 'First Officer'),
-    ('C345', 'Carol Lee', 'ORD', 'Captain');
+    ('C345', 'Carol Lee', 'JFK', 'Captain');
 
 INSERT INTO flight (flight_id, origin, destination, scheduled_time, status, delay_minutes) VALUES
     ('FL-1042', 'JFK', 'LAX', NOW() + INTERVAL '2 hours', 'Scheduled', 240),
@@ -84,16 +84,20 @@ INSERT INTO duty_clock (crew_id, total_minutes, max_allowed)
 SELECT id, 600, 720 FROM crew WHERE crew_id = 'C102';
 INSERT INTO duty_clock (crew_id, total_minutes, max_allowed)
 SELECT id, 300, 720 FROM crew WHERE crew_id = 'C231';
+INSERT INTO duty_clock (crew_id, total_minutes, max_allowed)
+SELECT id, 120, 720 FROM crew WHERE crew_id = 'C345';
 
 -- Certifications (expiry dates)
 INSERT INTO certification (crew_id, certification_type, expires_at)
 SELECT id, 'TypeA', (NOW() + INTERVAL '180 days')::date FROM crew WHERE crew_id = 'C102';
 INSERT INTO certification (crew_id, certification_type, expires_at)
 SELECT id, 'TypeA', (NOW() + INTERVAL '30 days')::date FROM crew WHERE crew_id = 'C231';
+INSERT INTO certification (crew_id, certification_type, expires_at)
+SELECT id, 'TypeA', (NOW() + INTERVAL '180 days')::date FROM crew WHERE crew_id = 'C345';
 
--- Reserves (none for now)
+-- Reserve pool: assigned crew are unavailable; C345 is the sample JFK reserve.
 INSERT INTO reserve (crew_id, available)
-SELECT id, FALSE FROM crew WHERE crew_id IN ('C102', 'C231');
+SELECT id, crew_id = 'C345' FROM crew WHERE crew_id IN ('C102', 'C231', 'C345');
 
 -- Simple rule (max duty per day)
 INSERT INTO rules (name, description, value) VALUES ('max_daily_duty', 'Maximum allowed duty minutes per 24h period', '720');

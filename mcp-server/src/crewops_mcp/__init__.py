@@ -1,0 +1,1 @@
+"""Standalone CrewOps FastMCP server."""
