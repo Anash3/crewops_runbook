@@ -1,5 +1,9 @@
 # CrewOps Runbook
 
+CrewOps helps an on-call operator investigate whether a flight delay will push assigned crew past a recorded duty limit. TrueForge reads live CrewOps data and runs a duty calculation in its sandbox; a human-written runbook then validates a proposed replacement and stops for approval before the roster action. The current action is a mock and verification confirms that no roster row changed.
+
+Read [the project story and architecture](docs/PROJECT_STORY.md) for the problem statement, the role of TrueForge, the agent flow, safety boundary, and demo scope.
+
 This repository has three separate projects: the CrewOps backend, a standalone FastMCP server, and a Next.js operator UI.
 
 ```text
